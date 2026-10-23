@@ -1,0 +1,16 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `pnpm dlx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+// Connection URLs live outside the schema (Prisma 7):
+//   - CLI (migrate/studio): DIRECT_URL in prisma.config.ts
+//   - App runtime: DATABASE_URL (pooled) via PrismaPg in common/database/prisma.service.ts
+datasource db {
+  provider = "postgresql"
+}
