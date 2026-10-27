@@ -1,0 +1,84 @@
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { deleteAsset, uploadAsset } from '@/features/assets/api';
+import { usersKeys } from '@/features/users/queries';
+import type { CurrentUser } from '@/features/users/types';
+import type { Business } from '@/types/models';
+import { getBusiness, updateBusiness } from './api';
+import type { UpdateBusinessRequest } from './types';
+
+export const businessKeys = {
+  all: ['business'] as const,
+  detail: () => [...businessKeys.all, 'detail'] as const,
+};
+
+export function useBusiness() {
+  return useQuery({
+    queryKey: businessKeys.detail(),
+    queryFn: getBusiness,
+  });
+}
+
+/**
+ * The business also lives in the current-user query (the layout shows its name and logo), so
+ * both caches are updated with the saved version.
+ */
+function storeBusiness(queryClient: QueryClient, business: Business): void {
+  queryClient.setQueryData(businessKeys.detail(), business);
+  queryClient.setQueryData<CurrentUser>(usersKeys.me(), (current) =>
+    current ? { ...current, business } : current,
+  );
+}
+
+export function useUpdateBusiness() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: UpdateBusinessRequest) => updateBusiness(request),
+    onSuccess: (business) => storeBusiness(queryClient, business),
+  });
+}
+
+interface ReplaceLogoInput {
+  file: File;
+  /** The current logo's asset, deleted once the new one is in place. */
+  previousAssetId: string | null;
+}
+
+/** Uploads an image, makes it the logo, then deletes the old logo file. */
+export function useReplaceLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, previousAssetId }: ReplaceLogoInput) => {
+      const asset = await uploadAsset(file);
+
+      let business: Business;
+      try {
+        business = await updateBusiness({ logo_asset_id: asset.id });
+      } catch (error) {
+        // Don't leave the just-uploaded file behind if it couldn't be set as the logo.
+        await deleteAsset(asset.id).catch(() => undefined);
+        throw error;
+      }
+
+      if (previousAssetId) {
+        // The new logo is already saved; failing to delete the old file shouldn't fail the
+        // change, it only leaves an unused file in storage.
+        await deleteAsset(previousAssetId).catch(() => undefined);
+      }
+      return business;
+    },
+    onSuccess: (business) => storeBusiness(queryClient, business),
+  });
+}
+
+/** Deleting the logo's asset also clears the business's logo (the API's foreign key does it). */
+export function useRemoveLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (assetId: string) => deleteAsset(assetId),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: businessKeys.all }),
+        queryClient.invalidateQueries({ queryKey: usersKeys.me(), exact: true }),
+      ]),
+  });
+}
