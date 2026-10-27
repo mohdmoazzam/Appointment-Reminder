@@ -6,7 +6,6 @@ import { TimeOffCard } from '@/features/schedules/components/TimeOffCard';
 import { WorkingHoursCard } from '@/features/schedules/components/WorkingHoursCard';
 import { useDocumentTitle } from '@/lib/hooks/use-document-title';
 import { ProfileCard } from '../components/ProfileCard';
-import { SessionsCard } from '../components/SessionsCard';
 
 /** Must match the hash in paths.myWorkingHours. */
 const WORKING_HOURS_HASH = '#working-hours';
@@ -26,10 +25,7 @@ export function AccountPage() {
 
   return (
     <>
-      <PageHeader
-        title="Account"
-        description="Your profile, when you can be booked, and the devices you're signed in on."
-      />
+      <PageHeader title="Account" description="Your profile and when you can be booked." />
       <div className="space-y-6">
         <ProfileCard user={user} businessName={business.name} />
         {/* Same cards as on your staff page; editing follows the same owner-only rule. */}
@@ -37,7 +33,6 @@ export function AccountPage() {
           <WorkingHoursCard userId={user.id} canEdit={isOwner} />
         </div>
         <TimeOffCard userId={user.id} canEdit={isOwner} />
-        <SessionsCard />
       </div>
     </>
   );

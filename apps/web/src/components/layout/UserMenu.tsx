@@ -8,13 +8,16 @@ import { cn } from '@/lib/cn';
 import { useDismiss, type DismissReason } from '@/lib/hooks/use-dismiss';
 import { fullName } from '@/lib/names';
 import { USER_ROLE_LABELS } from '@/types/enums';
-import { ChevronDownIcon, LogoutIcon, UserCircleIcon } from './icons';
+import { ChevronDownIcon, DevicesIcon, LogoutIcon, UserCircleIcon } from './icons';
 
 const MENU_ITEM_CLASSES =
   'flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-slate-700 ' +
   'hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none disabled:opacity-60';
 
-/** The signed-in user's profile button in the top bar; opens a menu with Account and Sign out. */
+/**
+ * The signed-in user's profile button in the top bar; opens a menu with Account, Signed-in
+ * devices and Sign out.
+ */
 export function UserMenu() {
   const { signOut } = useAuth();
   const { user } = useCurrentUser();
@@ -88,6 +91,15 @@ export function UserMenu() {
             >
               <UserCircleIcon className="size-4 text-slate-500" />
               Account
+            </Link>
+            <Link
+              to={paths.devices}
+              role="menuitem"
+              onClick={closeMenu}
+              className={MENU_ITEM_CLASSES}
+            >
+              <DevicesIcon className="size-4 text-slate-500" />
+              Signed-in devices
             </Link>
             <button
               type="button"

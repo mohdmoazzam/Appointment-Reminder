@@ -74,7 +74,7 @@ export function DashboardPage() {
             label="Pending invites"
             value={pendingInvites}
             isError={invitesQuery.isError}
-            link={{ to: paths.staff, label: 'View invites' }}
+            link={{ to: paths.staffInvites, label: 'View invites' }}
           />
         </div>
 

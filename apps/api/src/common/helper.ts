@@ -25,6 +25,16 @@ export class Helper {
     return dayjs(from).add(days, 'day').toDate();
   }
 
+  /** A JWT timestamp (seconds since the epoch, e.g. the `exp` claim) as a Date. */
+  static fromUnixSeconds(seconds: number): Date {
+    return dayjs.unix(seconds).toDate();
+  }
+
+  /** Milliseconds from now until `date`; 0 when it has passed. */
+  static msUntil(date: Date): number {
+    return Math.max(0, dayjs(date).diff(dayjs()));
+  }
+
   /** True when `date` is now or in the past, e.g. an expiry timestamp that has passed. */
   static isExpired(date: Date): boolean {
     return !dayjs(date).isAfter(dayjs());
@@ -177,5 +187,15 @@ export class Helper {
       .replace(/^-+|-+$/g, '')
       .slice(0, 50);
     return slug || 'business';
+  }
+
+  /** A caught value as text, for logs and stored error messages. */
+  static errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  /** An instant in a time zone, e.g. "Mon, Nov 2 at 10:30 AM". */
+  static formatInZone(instant: Date, timeZone: string): string {
+    return dayjs(instant).tz(timeZone).format('ddd, MMM D [at] h:mm A');
   }
 }

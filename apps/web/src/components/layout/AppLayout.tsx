@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Outlet } from 'react-router';
 import { Avatar } from '@/components/ui/Avatar';
 import { useCurrentUser } from '@/features/auth/context/use-auth';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
+import { useNotificationStream } from '@/features/notifications/use-notification-stream';
 import { cn } from '@/lib/cn';
 import { AppLogo } from './AppLogo';
 import { CloseIcon, MenuIcon } from './icons';
@@ -15,6 +17,7 @@ import { UserMenu } from './UserMenu';
 export function AppLayout() {
   const { business } = useCurrentUser();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useNotificationStream();
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   return (
@@ -70,6 +73,7 @@ export function AppLayout() {
           <MenuIcon className="size-6" />
         </button>
         <div className="flex-1" />
+        <NotificationBell />
         <UserMenu />
       </header>
 

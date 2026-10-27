@@ -24,9 +24,7 @@ export function useBusiness() {
  */
 function storeBusiness(queryClient: QueryClient, business: Business): void {
   queryClient.setQueryData(businessKeys.detail(), business);
-  queryClient.setQueryData<CurrentUser>(usersKeys.me(), (current) =>
-    current ? { ...current, business } : current,
-  );
+  queryClient.setQueryData<CurrentUser>(usersKeys.me(), (current) => (current ? { ...current, business } : current));
 }
 
 export function useUpdateBusiness() {
@@ -37,30 +35,33 @@ export function useUpdateBusiness() {
   });
 }
 
-interface ReplaceLogoInput {
+/** The business's images, by the field that points at their asset. */
+export type BusinessImageField = 'logo_asset_id' | 'cover_asset_id';
+
+interface ReplaceImageInput {
   file: File;
-  /** The current logo's asset, deleted once the new one is in place. */
+  /** The current image's asset, deleted once the new one is in place. */
   previousAssetId: string | null;
 }
 
-/** Uploads an image, makes it the logo, then deletes the old logo file. */
-export function useReplaceLogo() {
+/** Uploads an image, makes it the logo (or cover), then deletes the old file. */
+export function useReplaceBusinessImage(field: BusinessImageField) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ file, previousAssetId }: ReplaceLogoInput) => {
+    mutationFn: async ({ file, previousAssetId }: ReplaceImageInput) => {
       const asset = await uploadAsset(file);
 
       let business: Business;
       try {
-        business = await updateBusiness({ logo_asset_id: asset.id });
+        business = await updateBusiness({ [field]: asset.id });
       } catch (error) {
-        // Don't leave the just-uploaded file behind if it couldn't be set as the logo.
+        // Don't leave the just-uploaded file behind if it couldn't be set on the business.
         await deleteAsset(asset.id).catch(() => undefined);
         throw error;
       }
 
       if (previousAssetId) {
-        // The new logo is already saved; failing to delete the old file shouldn't fail the
+        // The new image is already saved; failing to delete the old file shouldn't fail the
         // change, it only leaves an unused file in storage.
         await deleteAsset(previousAssetId).catch(() => undefined);
       }
@@ -70,8 +71,11 @@ export function useReplaceLogo() {
   });
 }
 
-/** Deleting the logo's asset also clears the business's logo (the API's foreign key does it). */
-export function useRemoveLogo() {
+/**
+ * Deleting a logo's or cover's asset also clears it on the business (the API's foreign key
+ * does it).
+ */
+export function useRemoveBusinessImage() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (assetId: string) => deleteAsset(assetId),

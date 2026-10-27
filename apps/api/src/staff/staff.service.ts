@@ -4,6 +4,8 @@ import { CryptoService } from '../common/crypto/crypto.service.js';
 import { PrismaService } from '../common/database/prisma.service.js';
 import type { Prisma } from '../common/database/prisma/generated/client.js';
 import { serviceInclude, toServiceResponse, userSelect } from '../common/database/selects.js';
+import { NotificationEventsEnum } from '../common/enums.js';
+import { NotificationService } from '../common/services/notification.service.js';
 import type { AuthUser } from '../common/decorators/current-user.decorator.js';
 import { PageDto, PageMetaDto, type PageOptionsDto } from '../common/dtos/common.dto.js';
 import type { ListServicesDto } from '../common/dtos/services.dto.js';
@@ -27,6 +29,7 @@ export class StaffService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
+    private readonly notifications: NotificationService,
     @Inject(ConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -117,7 +120,10 @@ export class StaffService {
     return new PageDto(data, pageMeta);
   }
 
-  /** No email service yet, so the link is returned for the owner to share. */
+  /**
+   * Queues the invite email. The link is also returned (only here: the API keeps just its hash)
+   * so the owner can share it themselves, e.g. on WhatsApp or when the email can't be queued.
+   */
   async createInvite(auth: AuthUser, dto: CreateInviteDto) {
     const existing = await this.prisma.users.findUnique({
       where: { email: dto.email },
@@ -126,7 +132,8 @@ export class StaffService {
     if (existing) throw new ConflictException('An account with this email already exists');
 
     const { token, token_hash } = this.crypto.generateOpaqueToken();
-    const expires_at = Helper.addDays(this.config.get('INVITE_TTL_DAYS', { infer: true }));
+    const ttl_days = this.config.get('INVITE_TTL_DAYS', { infer: true });
+    const expires_at = Helper.addDays(ttl_days);
     const [, invite] = await this.prisma.$transaction([
       // Re-inviting replaces any pending invite, so only the newest link works.
       this.prisma.staff_invites.deleteMany({
@@ -150,7 +157,42 @@ export class StaffService {
         select: inviteSelect,
       }),
     ]);
-    return { ...invite, invite_url: `${this.config.get('APP_URL', { infer: true })}/invite/${token}` };
+    const invite_url = `${this.config.get('APP_URL', { infer: true })}/invite/${token}`;
+
+    const inviter = await this.prisma.users.findUniqueOrThrow({
+      where: { id: auth.user_id },
+      select: {
+        first_name: true,
+        last_name: true,
+        email: true,
+        business: { select: { name: true } },
+      },
+    });
+    const invited_by = `${inviter.first_name} ${inviter.last_name}`;
+    const notification = await this.notifications.queueNotification({
+      event: NotificationEventsEnum.STAFF_INVITE,
+      business_id: auth.business_id,
+      // Each invite (including a re-invite, which is a new row) is emailed once.
+      idempotency_key: `${NotificationEventsEnum.STAFF_INVITE}:${invite.id}`,
+      // The invitee has no account yet: email and name only.
+      recipients: [{ email: invite.email, name: `${invite.first_name} ${invite.last_name}` }],
+      payload: {
+        first_name: invite.first_name,
+        business_name: inviter.business.name,
+        invited_by,
+        invite_url,
+        expires_in_days: ttl_days,
+      },
+      // Questions about the invite go to whoever sent it, not to the no-reply sender.
+      reply_to: { email: inviter.email, name: invited_by },
+    });
+
+    // "queued" normally; "failed"/"skipped" means the owner should share the link themselves.
+    return {
+      ...invite,
+      invite_url,
+      email_status: notification.deliveries[0]?.status ?? 'skipped',
+    };
   }
 
   async revokeInvite(business_id: string, invite_id: string) {
@@ -168,8 +210,14 @@ export class StaffService {
     return this.prisma.$transaction(
       async (tx) => {
         const target = await tx.users.findFirst({
-          where: { id: user_id, business_id: auth.business_id },
-          select: { role: true, status: true },
+          where: {
+            id: user_id,
+            business_id: auth.business_id,
+          },
+          select: {
+            role: true,
+            status: true,
+          },
         });
         if (!target) throw new NotFoundException('Staff member not found');
 

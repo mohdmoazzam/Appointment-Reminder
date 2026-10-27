@@ -15,15 +15,10 @@ export class BusinessService {
     return toBusinessResponse(business);
   }
 
-  /** `logo_asset_id` must be an image uploaded to this business via POST /assets/upload. */
+  /** `logo_asset_id` and `cover_asset_id` must be images uploaded to this business via POST /assets/upload. */
   async update(business_id: string, dto: UpdateBusinessDto) {
-    if (dto.logo_asset_id) {
-      const asset = await this.prisma.assets.findFirst({
-        where: { id: dto.logo_asset_id, business_id, mime_type: { startsWith: 'image/' } },
-        select: { id: true },
-      });
-      if (!asset) throw new BadRequestException('logo_asset_id must be an image uploaded to this business');
-    }
+    await this.assertOwnImage(business_id, 'logo_asset_id', dto.logo_asset_id);
+    await this.assertOwnImage(business_id, 'cover_asset_id', dto.cover_asset_id);
 
     const business = await this.prisma.businesses.update({
       where: { id: business_id },
@@ -31,5 +26,14 @@ export class BusinessService {
       include: businessInclude,
     });
     return toBusinessResponse(business);
+  }
+
+  private async assertOwnImage(business_id: string, field: string, asset_id: string | null | undefined) {
+    if (!asset_id) return;
+    const asset = await this.prisma.assets.findFirst({
+      where: { id: asset_id, business_id, mime_type: { startsWith: 'image/' } },
+      select: { id: true },
+    });
+    if (!asset) throw new BadRequestException(`${field} must be an image uploaded to this business`);
   }
 }

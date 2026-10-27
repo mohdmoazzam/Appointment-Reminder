@@ -50,18 +50,14 @@ export interface StaffActionCopy {
   successMessage: string;
 }
 
-export function describeStaffAction(
-  { member, action }: PendingStaffAction,
-  isSelf: boolean,
-): StaffActionCopy {
+export function describeStaffAction({ member, action }: PendingStaffAction, isSelf: boolean): StaffActionCopy {
   const name = isSelf ? 'You' : fullName(member);
 
   switch (action) {
     case 'make-owner':
       return {
         title: `Make ${fullName(member)} an owner?`,
-        message:
-          'Owners can edit the business, invite and remove staff, and change anyone’s role, including yours.',
+        message: 'Owners can edit the business, invite and remove staff, and change anyone’s role, including yours.',
         confirmLabel: 'Make owner',
         tone: 'primary',
         successMessage: `${name} ${isSelf ? 'are' : 'is'} now an owner`,

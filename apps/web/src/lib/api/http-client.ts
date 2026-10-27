@@ -52,8 +52,10 @@ export const http = {
  * Sends the request with the access token. If the API answers 401 the session is refreshed
  * once and the request retried; if that is not possible the session is expired, which signs
  * the user out.
+ *
+ * Exported for responses read as they arrive (event streams); everything else uses apiRequest.
  */
-async function sendAuthenticated(path: string, options: RequestOptions): Promise<Response> {
+export async function sendAuthenticated(path: string, options: RequestOptions): Promise<Response> {
   if (!tokenStore.getAccessToken()) {
     // After a page reload only the refresh token is left (in storage).
     await refreshSession();

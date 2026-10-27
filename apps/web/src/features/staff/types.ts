@@ -11,11 +11,16 @@ export interface CreateInviteRequest {
 }
 
 /**
- * Response of POST /staff/invites. There is no email service yet, so the owner shares
- * `invite_url` themselves. Only this response contains it: the API stores just a hash.
+ * Response of POST /staff/invites. The API emails the invite; `invite_url` is also returned so
+ * the owner can share it by hand. Only this response contains it: the API stores just a hash.
  */
 export interface CreatedInvite extends StaffInvite {
   invite_url: string;
+  /**
+   * The invite email is sent in the background: "queued" normally. "failed" or "skipped" means
+   * it couldn't be queued, so the owner needs to share `invite_url` themselves.
+   */
+  email_status: 'queued' | 'sent' | 'failed' | 'skipped';
 }
 
 /** PATCH /staff/:user_id (UpdateStaffDto) */

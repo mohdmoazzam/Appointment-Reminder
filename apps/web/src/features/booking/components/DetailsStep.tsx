@@ -40,7 +40,7 @@ export function DetailsStep({ onSubmit, isSubmitting, submitError }: DetailsStep
   return (
     <form
       noValidate
-      className="space-y-4"
+      className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
       onSubmit={handleSubmit((values) =>
         onSubmit({ customer: toCustomerInput(values.customer), notes: values.notes || undefined }),
       )}
@@ -66,7 +66,7 @@ export function DetailsStep({ onSubmit, isSubmitting, submitError }: DetailsStep
         type="tel"
         autoComplete="tel"
         placeholder="+91 98765 43210"
-        hint="Include your country code. We'll send your confirmation and reminders here."
+        hint="Include your country code, so the business can reach you about this booking."
         error={errors.customer?.phone?.message}
         {...register('customer.phone')}
       />
@@ -85,9 +85,12 @@ export function DetailsStep({ onSubmit, isSubmitting, submitError }: DetailsStep
         error={errors.notes?.message}
         {...register('notes')}
       />
-      <Button type="submit" className="w-full" isLoading={isSubmitting}>
+      <Button type="submit" className="h-11 w-full text-base" isLoading={isSubmitting}>
         Confirm booking
       </Button>
+      <p className="text-center text-xs text-slate-400">
+        Your details are only shared with this business.
+      </p>
     </form>
   );
 }

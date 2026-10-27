@@ -8,55 +8,63 @@ datasource db {
 }
 
 model businesses {
-  id             String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  name           String
-  slug           String              @unique
-  type           business_type
-  phone          String?
-  address_line1  String?
-  address_line2  String?
-  city           String?
-  state          String?
-  postal_code    String?
-  country        String?             @db.Char(2)
-  timezone       String
+  id                   String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name                 String
+  slug                 String                 @unique
+  type                 business_type
+  phone                String?
+  address_line1        String?
+  address_line2        String?
+  city                 String?
+  state                String?
+  postal_code          String?
+  country              String?                @db.Char(2)
+  timezone             String
   /// ISO 4217 code; service prices are in this currency.
-  currency       String              @default("INR") @db.Char(3)
-  created_at     DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime            @updatedAt @db.Timestamptz(6)
-  logo_asset_id  String?             @unique @db.Uuid
-  assets         assets[]            @relation("business_assets")
-  logo_asset     assets?             @relation("business_logo", fields: [logo_asset_id], references: [id])
-  appointments   appointments[]
-  closures       business_closures[]
-  customers      customers[]
-  services       services[]
-  staff_invites  staff_invites[]
-  staff_time_off staff_time_off[]
-  users          users[]
+  currency             String                 @default("INR") @db.Char(3)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @updatedAt @db.Timestamptz(6)
+  logo_asset_id        String?                @unique @db.Uuid
+  assets               assets[]               @relation("business_assets")
+  logo_asset           assets?                @relation("business_logo", fields: [logo_asset_id], references: [id])
+  /// Wide banner image shown at the top of the booking page.
+  cover_asset_id       String?                @unique @db.Uuid
+  cover_asset          assets?                @relation("business_cover", fields: [cover_asset_id], references: [id])
+  appointments         appointments[]
+  closures             business_closures[]
+  customers            customers[]
+  services             services[]
+  staff_invites        staff_invites[]
+  staff_time_off       staff_time_off[]
+  users                users[]
+  notification_events  notification_events[]
+  email_templates      email_templates[]
+  in_app_notifications in_app_notifications[]
 }
 
 model users {
-  id                  String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  business_id         String           @db.Uuid
-  email               String           @unique
-  first_name          String
-  last_name           String
-  password_hash       String
-  role                user_role
-  status              user_status      @default(active)
-  last_login_at       DateTime?        @db.Timestamptz(6)
-  created_at          DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime         @updatedAt @db.Timestamptz(6)
-  appointments        appointments[]   @relation("appointment_staff")
-  booked_appointments appointments[]   @relation("appointment_created_by")
-  assets              assets[]
-  sessions            sessions[]
-  staff_invites       staff_invites[]
-  staff_services      staff_services[]
-  staff_time_off      staff_time_off[]
-  working_hours       working_hours[]
-  business            businesses       @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  id                      String                    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id             String                    @db.Uuid
+  email                   String                    @unique
+  first_name              String
+  last_name               String
+  password_hash           String
+  role                    user_role
+  status                  user_status               @default(active)
+  last_login_at           DateTime?                 @db.Timestamptz(6)
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @updatedAt @db.Timestamptz(6)
+  appointments            appointments[]            @relation("appointment_staff")
+  booked_appointments     appointments[]            @relation("appointment_created_by")
+  assets                  assets[]
+  sessions                sessions[]
+  staff_invites           staff_invites[]
+  staff_services          staff_services[]
+  staff_time_off          staff_time_off[]
+  working_hours           working_hours[]
+  notification_deliveries notification_deliveries[]
+  in_app_notifications    in_app_notifications[]
+  business                businesses                @relation(fields: [business_id], references: [id], onDelete: Cascade)
 
   @@index([business_id])
 }
@@ -78,6 +86,7 @@ model assets {
   business       businesses  @relation("business_assets", fields: [business_id], references: [id], onDelete: Cascade)
   uploaded_by    users       @relation(fields: [uploaded_by_id], references: [id], onDelete: Cascade)
   logo_of        businesses? @relation("business_logo")
+  cover_of       businesses? @relation("business_cover")
 
   @@index([business_id])
 }
@@ -281,4 +290,118 @@ enum user_role {
 enum user_status {
   active
   disabled
+}
+
+/// Something that happened and should be told to people, e.g. a staff invite. One row per
+/// event; who gets it on which channel is in notification_deliveries.
+model notification_events {
+  id              String                    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// Null for events that don't belong to a business.
+  business_id     String?                   @db.Uuid
+  /// A NotificationEventsEnum value, e.g. "staff_invite".
+  event           String
+  payload         Json
+  /// Queueing the same key again returns the existing event instead of notifying twice.
+  idempotency_key String                    @unique
+  /// Where email replies go, e.g. the owner who sent an invite (instead of the no-reply sender).
+  reply_to_email  String?
+  reply_to_name   String?
+  created_at      DateTime                  @default(now()) @db.Timestamptz(6)
+  business        businesses?               @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  deliveries      notification_deliveries[]
+
+  @@index([business_id, created_at])
+}
+
+/// One recipient on one channel for an event.
+model notification_deliveries {
+  id                  String                           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  event_id            String                           @db.Uuid
+  channel             notification_channel
+  status              notification_delivery_status     @default(queued)
+  /// Set for signed-in users; anonymous recipients (e.g. an invitee) only have email and name.
+  recipient_user_id   String?                          @db.Uuid
+  recipient_email     String?
+  recipient_name      String?
+  attempts            Int                              @default(0)
+  /// Why it was skipped, or the last error once it has failed for good.
+  error               String?
+  /// The provider's id for the message (e.g. Brevo's messageId), to trace it on their side.
+  provider_message_id String?
+  sent_at             DateTime?                        @db.Timestamptz(6)
+  created_at          DateTime                         @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime                         @updatedAt @db.Timestamptz(6)
+  event               notification_events              @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  recipient_user      users?                           @relation(fields: [recipient_user_id], references: [id], onDelete: SetNull)
+  attempt_logs        notification_delivery_attempts[]
+  in_app_notification in_app_notifications?
+
+  @@index([event_id])
+  @@index([recipient_user_id])
+}
+
+/// Every try at sending a delivery, successful or not.
+model notification_delivery_attempts {
+  id          String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  delivery_id String                  @db.Uuid
+  attempt     Int
+  succeeded   Boolean
+  error       String?
+  duration_ms Int
+  created_at  DateTime                @default(now()) @db.Timestamptz(6)
+  delivery    notification_deliveries @relation(fields: [delivery_id], references: [id], onDelete: Cascade)
+
+  @@index([delivery_id])
+}
+
+/// Email content per event type. business_id null = the app-wide template; a business can
+/// have its own. The one marked is_default is used, the business's before the app-wide one.
+/// Placeholders: {{payload_field}}, escaped in html.
+model email_templates {
+  id          String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id String?     @db.Uuid
+  /// A NotificationEventsEnum value.
+  type        String
+  is_default  Boolean     @default(false)
+  subject     String
+  /// The message body; the shared layout (mail/templates/layout.ts) wraps it.
+  html        String
+  text        String
+  created_at  DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime    @updatedAt @db.Timestamptz(6)
+  business    businesses? @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@index([type, business_id])
+}
+
+model in_app_notifications {
+  id          String                   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id String                   @db.Uuid
+  user_id     String                   @db.Uuid
+  delivery_id String?                  @unique @db.Uuid
+  /// A NotificationEventsEnum value.
+  event       String
+  title       String
+  body        String
+  /// Where clicking it goes in the web app, e.g. "/appointments?date=2026-11-02".
+  link        String?
+  read_at     DateTime?                @db.Timestamptz(6)
+  created_at  DateTime                 @default(now()) @db.Timestamptz(6)
+  business    businesses               @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  user        users                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  delivery    notification_deliveries? @relation(fields: [delivery_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at])
+}
+
+enum notification_channel {
+  email
+  in_app
+}
+
+enum notification_delivery_status {
+  queued
+  sent
+  failed
+  skipped
 }

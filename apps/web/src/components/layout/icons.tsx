@@ -86,6 +86,16 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
+export function DevicesIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2" y="4" width="14" height="10" rx="1.5" />
+      <path d="M6 18h6M9 14v4" />
+      <rect x="17" y="8" width="5" height="10" rx="1" />
+    </Icon>
+  );
+}
+
 export function LogoutIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -107,6 +117,15 @@ export function CloseIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M6 6l12 12M18 6 6 18" />
+    </Icon>
+  );
+}
+
+export function BellIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
     </Icon>
   );
 }

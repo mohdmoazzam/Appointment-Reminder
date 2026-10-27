@@ -148,6 +148,37 @@ describe('Services, working hours, time off & closures (e2e)', () => {
     expect(member.body).toMatchObject({ id: staff.user_id, first_name: 'Sam' });
   });
 
+  it("lets the owner set a staff member's schedule; staff can only view it", async () => {
+    const owner = await signup();
+    const staff = await addStaff(owner.token);
+    const auth = { type: 'bearer' } as const;
+    const hoursPath = `/staff/${staff.user_id}/working-hours`;
+    const doctorDay = {
+      intervals: [
+        { day_of_week: 2, start_time: '10:00', end_time: '14:00' },
+        { day_of_week: 2, start_time: '16:00', end_time: '18:00' },
+      ],
+    };
+
+    // The owner sets the staff member's split day and time off.
+    await http().put(hoursPath).auth(owner.token, auth).send(doctorDay).expect(204);
+    await http()
+      .post(`/staff/${staff.user_id}/time-off`)
+      .auth(owner.token, auth)
+      .send({ starts_on: '2099-06-01', ends_on: '2099-06-02' })
+      .expect(201);
+
+    // The staff member sees it but can't change it.
+    const seen = await http().get(`${hoursPath}?take=100&order=asc`).auth(staff.token, auth).expect(200);
+    expect(seen.body.data.map((i: { start_time: string }) => i.start_time)).toEqual(['10:00', '16:00']);
+    await http().put(hoursPath).auth(staff.token, auth).send({ intervals: [] }).expect(403);
+    await http()
+      .post(`/staff/${staff.user_id}/time-off`)
+      .auth(staff.token, auth)
+      .send({ starts_on: '2099-07-01', ends_on: '2099-07-01' })
+      .expect(403);
+  });
+
   it('replaces weekly working hours and rejects overlapping intervals', async () => {
     const owner = await signup();
     const auth = { type: 'bearer' } as const;

@@ -18,6 +18,7 @@ export interface PublicBusiness {
   timezone: string;
   currency: string;
   logo_url: string | null;
+  cover_url: string | null;
   /** How many days ahead customers can book. */
   booking_window_days: number;
 }

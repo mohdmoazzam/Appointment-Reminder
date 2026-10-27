@@ -22,7 +22,7 @@ export function InviteStaffDialog({ open, onClose }: InviteStaffDialogProps) {
       open={open}
       onClose={onClose}
       title="Invite a team member"
-      description="They'll set their own password when they open the invite link."
+      description="We'll email them an invite link; they set their own password when they open it."
     >
       {/* Mounted only while open, so the form and its result start fresh each time. */}
       <InviteStaffForm onDone={onClose} />
@@ -69,12 +69,7 @@ function InviteStaffForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <ErrorAlert error={formError} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField
-          label="First name"
-          autoFocus
-          error={errors.first_name?.message}
-          {...register('first_name')}
-        />
+        <TextField label="First name" autoFocus error={errors.first_name?.message} {...register('first_name')} />
         <TextField label="Last name" error={errors.last_name?.message} {...register('last_name')} />
       </div>
       <TextField label="Email" type="email" error={errors.email?.message} {...register('email')} />
@@ -90,7 +85,7 @@ function InviteStaffForm({ onDone }: { onDone: () => void }) {
           Cancel
         </Button>
         <Button type="submit" isLoading={createMutation.isPending}>
-          Create invite link
+          Send invite
         </Button>
       </DialogActions>
     </form>

@@ -15,7 +15,7 @@ export function Pagination({ meta, onPageChange, itemLabel = 'items' }: Paginati
   return (
     <nav
       aria-label="Pagination"
-      className="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-3"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3"
     >
       <p className="text-sm text-slate-500">
         Page {meta.page} of {meta.pageCount} · {meta.count} {itemLabel}

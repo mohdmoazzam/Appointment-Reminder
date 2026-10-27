@@ -17,5 +17,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # Notification queues (BullMQ). 6380 so it doesn't clash with another local Redis on 6379.
+  redis:
+    image: redis:7-alpine
+    container_name: appointment-reminder-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   pgdata:
+  redisdata:
