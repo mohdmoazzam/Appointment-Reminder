@@ -1,16 +1,284 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `pnpm dlx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "./generated"
 }
 
-// Connection URLs live outside the schema (Prisma 7):
-//   - CLI (migrate/studio): DIRECT_URL in prisma.config.ts
-//   - App runtime: DATABASE_URL (pooled) via PrismaPg in common/database/prisma.service.ts
 datasource db {
   provider = "postgresql"
+}
+
+model businesses {
+  id             String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name           String
+  slug           String              @unique
+  type           business_type
+  phone          String?
+  address_line1  String?
+  address_line2  String?
+  city           String?
+  state          String?
+  postal_code    String?
+  country        String?             @db.Char(2)
+  timezone       String
+  /// ISO 4217 code; service prices are in this currency.
+  currency       String              @default("INR") @db.Char(3)
+  created_at     DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime            @updatedAt @db.Timestamptz(6)
+  logo_asset_id  String?             @unique @db.Uuid
+  assets         assets[]            @relation("business_assets")
+  logo_asset     assets?             @relation("business_logo", fields: [logo_asset_id], references: [id])
+  appointments   appointments[]
+  closures       business_closures[]
+  customers      customers[]
+  services       services[]
+  staff_invites  staff_invites[]
+  staff_time_off staff_time_off[]
+  users          users[]
+}
+
+model users {
+  id                  String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id         String           @db.Uuid
+  email               String           @unique
+  first_name          String
+  last_name           String
+  password_hash       String
+  role                user_role
+  status              user_status      @default(active)
+  last_login_at       DateTime?        @db.Timestamptz(6)
+  created_at          DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime         @updatedAt @db.Timestamptz(6)
+  appointments        appointments[]   @relation("appointment_staff")
+  booked_appointments appointments[]   @relation("appointment_created_by")
+  assets              assets[]
+  sessions            sessions[]
+  staff_invites       staff_invites[]
+  staff_services      staff_services[]
+  staff_time_off      staff_time_off[]
+  working_hours       working_hours[]
+  business            businesses       @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id])
+}
+
+model assets {
+  id             String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id    String      @db.Uuid
+  uploaded_by_id String      @db.Uuid
+  public_id      String      @unique
+  resource_type  String
+  url            String
+  mime_type      String
+  format         String?
+  bytes          Int
+  width          Int?
+  height         Int?
+  original_name  String?
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+  business       businesses  @relation("business_assets", fields: [business_id], references: [id], onDelete: Cascade)
+  uploaded_by    users       @relation(fields: [uploaded_by_id], references: [id], onDelete: Cascade)
+  logo_of        businesses? @relation("business_logo")
+
+  @@index([business_id])
+}
+
+model sessions {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  user_id             String    @db.Uuid
+  refresh_token_hash  String    @unique
+  previous_token_hash String?   @unique
+  user_agent          String?
+  ip                  String?
+  expires_at          DateTime  @db.Timestamptz(6)
+  last_used_at        DateTime  @default(now()) @db.Timestamptz(6)
+  revoked_at          DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  user                users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model staff_invites {
+  id            String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id   String     @db.Uuid
+  email         String
+  first_name    String
+  last_name     String
+  role          user_role  @default(staff)
+  token_hash    String     @unique
+  invited_by_id String     @db.Uuid
+  expires_at    DateTime   @db.Timestamptz(6)
+  accepted_at   DateTime?  @db.Timestamptz(6)
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  business      businesses @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  invited_by    users      @relation(fields: [invited_by_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id])
+}
+
+/// Something customers book, e.g. "Haircut – 30 min – 450".
+model services {
+  id               String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id      String           @db.Uuid
+  name             String
+  description      String?
+  duration_minutes Int
+  /// In the business's currency. CHECK (price >= 0) in the migration.
+  price            Decimal          @db.Decimal(10, 2)
+  /// Inactive services are kept (for history) but can't be booked.
+  is_active        Boolean          @default(true)
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @updatedAt @db.Timestamptz(6)
+  business         businesses       @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  appointments     appointments[]
+  staff_services   staff_services[]
+
+  @@unique([business_id, name])
+  @@index([business_id])
+}
+
+/// Which staff member offers which service.
+model staff_services {
+  user_id    String   @db.Uuid
+  service_id String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  service    services @relation(fields: [service_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, service_id])
+  @@index([service_id])
+}
+
+/// A staff member's weekly schedule: one row per working interval. Several intervals on the same
+/// day leave gaps between them, which are the breaks. A weekday without rows is a day off.
+/// Times are minutes after midnight in the business's time zone.
+model working_hours {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  user_id      String   @db.Uuid
+  /// 0 = Sunday … 6 = Saturday
+  day_of_week  Int
+  start_minute Int
+  end_minute   Int
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  user         users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, day_of_week])
+}
+
+/// Whole days a staff member is away (leave, sick day). Dates are inclusive and are calendar
+/// dates in the business's time zone, hence @db.Date rather than a timestamp.
+model staff_time_off {
+  id          String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id String     @db.Uuid
+  user_id     String     @db.Uuid
+  starts_on   DateTime   @db.Date
+  ends_on     DateTime   @db.Date
+  reason      String?
+  created_at  DateTime   @default(now()) @db.Timestamptz(6)
+  business    businesses @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  user        users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, ends_on])
+  @@index([business_id])
+}
+
+/// Holidays and other days the whole business is closed. Dates are inclusive calendar dates in
+/// the business's time zone.
+model business_closures {
+  id          String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id String     @db.Uuid
+  name        String
+  starts_on   DateTime   @db.Date
+  ends_on     DateTime   @db.Date
+  created_at  DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime   @updatedAt @db.Timestamptz(6)
+  business    businesses @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id, ends_on])
+}
+
+/// People who book. One record per phone number per business, created on their first booking.
+model customers {
+  id           String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id  String         @db.Uuid
+  first_name   String
+  last_name    String
+  /// Normalised by Helper.normalizePhone ("+919876543210"); used for WhatsApp later.
+  phone        String
+  email        String?
+  notes        String?
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime       @updatedAt @db.Timestamptz(6)
+  business     businesses     @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  appointments appointments[]
+
+  @@unique([business_id, phone])
+  @@index([business_id, last_name])
+}
+
+/// A booking of one service with one staff member. Overlapping appointments for the same staff
+/// member are refused by the database (exclusion constraint appointments_no_overlap in the
+/// migration) unless one of them is cancelled.
+model appointments {
+  id                  String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  business_id         String             @db.Uuid
+  service_id          String             @db.Uuid
+  staff_id            String             @db.Uuid
+  customer_id         String             @db.Uuid
+  starts_at           DateTime           @db.Timestamptz(6)
+  /// starts_at + the service's duration at the time of booking.
+  ends_at             DateTime           @db.Timestamptz(6)
+  status              appointment_status @default(booked)
+  source              appointment_source
+  /// The service's price when booked, so later price changes don't rewrite history.
+  price               Decimal            @db.Decimal(10, 2)
+  notes               String?
+  cancellation_reason String?
+  cancelled_at        DateTime?          @db.Timestamptz(6)
+  /// The user who booked it from the dashboard; null for online bookings.
+  created_by_id       String?            @db.Uuid
+  created_at          DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime           @updatedAt @db.Timestamptz(6)
+  business            businesses         @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  // NoAction: a service, staff member or customer with appointments can't be deleted, so
+  // history is never lost. (Deleting the whole business still cascades.)
+  service             services           @relation(fields: [service_id], references: [id], onDelete: NoAction)
+  staff               users              @relation("appointment_staff", fields: [staff_id], references: [id], onDelete: NoAction)
+  customer            customers          @relation(fields: [customer_id], references: [id], onDelete: NoAction)
+  created_by          users?             @relation("appointment_created_by", fields: [created_by_id], references: [id], onDelete: SetNull)
+
+  @@index([business_id, starts_at])
+  @@index([staff_id, starts_at])
+  @@index([customer_id])
+}
+
+enum appointment_status {
+  booked
+  confirmed
+  completed
+  cancelled
+  no_show
+}
+
+enum appointment_source {
+  dashboard
+  online
+}
+
+enum business_type {
+  clinic
+  salon
+  dental
+  coaching
+  other
+}
+
+enum user_role {
+  owner
+  staff
+}
+
+enum user_status {
+  active
+  disabled
 }

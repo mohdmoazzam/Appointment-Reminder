@@ -6,6 +6,14 @@ export interface Env {
   CORS_ORIGIN: string;
   DATABASE_URL: string;
   JWT_SECRET: string;
+  JWT_ACCESS_TTL_SECONDS: number;
+  REFRESH_TOKEN_TTL_DAYS: number;
+  INVITE_TTL_DAYS: number;
+  APP_URL: string;
+  CLOUDINARY_CLOUD_NAME: string;
+  CLOUDINARY_API_KEY: string;
+  CLOUDINARY_API_SECRET: string;
+  CLOUDINARY_FOLDER: string;
 }
 
 /** Use this type when injecting config so `config.get(key, { infer: true })` is typed. */
@@ -21,6 +29,14 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     if (typeof value !== 'string' || value.trim() === '') {
       errors.push(`${key} is required`);
       return '';
+    }
+    return value;
+  };
+
+  const int = (key: keyof Env, fallback: string): number => {
+    const value = Number(str(key, fallback));
+    if (!Number.isInteger(value) || value <= 0) {
+      errors.push(`${key} must be a positive integer`);
     }
     return value;
   };
@@ -41,12 +57,18 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     CORS_ORIGIN: str('CORS_ORIGIN', 'http://localhost:5173'),
     DATABASE_URL: str('DATABASE_URL'),
     JWT_SECRET: str('JWT_SECRET'),
+    JWT_ACCESS_TTL_SECONDS: int('JWT_ACCESS_TTL_SECONDS', '900'),
+    REFRESH_TOKEN_TTL_DAYS: int('REFRESH_TOKEN_TTL_DAYS', '30'),
+    INVITE_TTL_DAYS: int('INVITE_TTL_DAYS', '7'),
+    APP_URL: str('APP_URL', 'http://localhost:5173'),
+    CLOUDINARY_CLOUD_NAME: str('CLOUDINARY_CLOUD_NAME'),
+    CLOUDINARY_API_KEY: str('CLOUDINARY_API_KEY'),
+    CLOUDINARY_API_SECRET: str('CLOUDINARY_API_SECRET'),
+    CLOUDINARY_FOLDER: str('CLOUDINARY_FOLDER', 'appointment-reminder'),
   };
 
   if (errors.length > 0) {
-    throw new Error(
-      `Invalid environment configuration:\n- ${errors.join('\n- ')}`,
-    );
+    throw new Error(`Invalid environment configuration:\n- ${errors.join('\n- ')}`);
   }
 
   return env;
