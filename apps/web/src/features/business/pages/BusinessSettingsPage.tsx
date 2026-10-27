@@ -1,51 +1,52 @@
-import { Card } from '@/components/ui/Card';
+import { useSearchParams } from 'react-router';
 import { ErrorBlock, LoadingBlock } from '@/components/ui/QueryStatus';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { Tabs } from '@/components/ui/Tabs';
+import { tabId, tabPanelId } from '@/components/ui/tab-ids';
 import { useCurrentUser } from '@/features/auth/context/use-auth';
 import { ClosuresCard } from '@/features/schedules/components/ClosuresCard';
 import { useDocumentTitle } from '@/lib/hooks/use-document-title';
-import { BookingLinkCard } from '../components/BookingLinkCard';
-import { BusinessLogoCard } from '../components/BusinessLogoCard';
+import { BookingPagePanel } from '../components/BookingPagePanel';
+import { BusinessIdentityHeader } from '../components/BusinessIdentityHeader';
 import { BusinessProfileForm } from '../components/BusinessProfileForm';
 import { useBusiness } from '../queries';
+
+type SettingsTab = 'profile' | 'booking' | 'closures';
+
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'booking', label: 'Online booking' },
+  { id: 'closures', label: 'Holidays & closures' },
+];
 
 export function BusinessSettingsPage() {
   useDocumentTitle('Business settings');
   const { isOwner } = useCurrentUser();
   const businessQuery = useBusiness();
 
+  // The open tab lives in the URL (?tab=booking) so a refresh or a shared link keeps it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requested = searchParams.get('tab');
+  const tab: SettingsTab = TABS.some((item) => item.id === requested) ? (requested as SettingsTab) : 'profile';
+  const selectTab = (next: SettingsTab) => setSearchParams(next === 'profile' ? {} : { tab: next }, { replace: true });
+
+  if (businessQuery.isPending) return <LoadingBlock label="Loading business" />;
+  if (businessQuery.isError) {
+    return <ErrorBlock error={businessQuery.error} onRetry={() => void businessQuery.refetch()} isRetrying={businessQuery.isFetching} />;
+  }
+
+  const business = businessQuery.data;
+
   return (
     <>
-      <PageHeader
-        title="Business settings"
-        description="Your business profile, address and logo."
-      />
+      <BusinessIdentityHeader business={business} canEdit={isOwner} />
+      <Tabs label="Business settings" className="mb-8" tabs={TABS} value={tab} onChange={selectTab} />
 
-      {businessQuery.isPending && (
-        <Card>
-          <LoadingBlock label="Loading business" />
-        </Card>
-      )}
-
-      {businessQuery.isError && (
-        <Card>
-          <ErrorBlock
-            error={businessQuery.error}
-            onRetry={() => void businessQuery.refetch()}
-            isRetrying={businessQuery.isFetching}
-          />
-        </Card>
-      )}
-
-      {businessQuery.isSuccess && (
-        <div className="space-y-6">
-          <BookingLinkCard slug={businessQuery.data.slug} />
-          <BusinessLogoCard business={businessQuery.data} canEdit={isOwner} />
-          {/* The form keeps its own edits; it re-bases on the server's values after each save. */}
-          <BusinessProfileForm business={businessQuery.data} canEdit={isOwner} />
-          <ClosuresCard canEdit={isOwner} />
-        </div>
-      )}
+      <div role="tabpanel" id={tabPanelId(tab)} aria-labelledby={tabId(tab)}>
+        {/* The form keeps its own edits; it re-bases on the server's values after each save. */}
+        {tab === 'profile' && <BusinessProfileForm business={business} canEdit={isOwner} />}
+        {tab === 'booking' && <BookingPagePanel slug={business.slug} />}
+        {tab === 'closures' && <ClosuresCard canEdit={isOwner} />}
+      </div>
     </>
   );
 }

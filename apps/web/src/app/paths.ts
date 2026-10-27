@@ -5,10 +5,17 @@ export const paths = {
   /** The business's public, shareable booking page. */
   publicBooking: (slug: string) => `/book/${encodeURIComponent(slug)}`,
   staff: '/staff',
+  /** The Staff page with the "Pending invites" tab open. */
+  staffInvites: '/staff?tab=invites',
   staffMember: (userId: string) => `/staff/${encodeURIComponent(userId)}`,
   services: '/services',
+  notifications: '/notifications',
   businessSettings: '/settings/business',
+  /** Business settings with the "Holidays & closures" tab open. */
+  businessClosures: '/settings/business?tab=closures',
   account: '/account',
+  /** Where you're signed in, with sign-out per device or everywhere. */
+  devices: '/account/devices',
   /** The account page, scrolled to your working hours. */
   myWorkingHours: '/account#working-hours',
   login: '/login',

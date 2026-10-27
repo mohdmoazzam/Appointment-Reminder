@@ -4,7 +4,12 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
 import { PrismaService } from './../src/common/database/prisma.service.js';
+import type { StaffInvitePayload } from './../src/common/dtos/notifications.dto.js';
+import { NotificationEventsEnum } from './../src/common/enums.js';
+import { MAIL_TRANSPORT, type MailMessage, type MailTransport, type SentMail } from './../src/common/mail/mail.types.js';
+import { NotificationService } from './../src/common/services/notification.service.js';
 import { StorageService, type StoredFile } from './../src/common/storage/storage.service.js';
+import { waitFor } from './wait-for.js';
 
 const PASSWORD = 'correct-horse-battery';
 // Smallest valid PNG header + IHDR; enough for magic-byte detection.
@@ -31,10 +36,22 @@ class FakeStorage {
   }
 }
 
+/** Records emails instead of sending them. Set `failing` to simulate the provider being down. */
+class FakeMail implements MailTransport {
+  sent: MailMessage[] = [];
+  failing = false;
+  async send(message: MailMessage): Promise<SentMail> {
+    if (this.failing) throw new Error('provider down');
+    this.sent.push(message);
+    return { message_id: `fake-${this.sent.length}` };
+  }
+}
+
 describe('Auth, business & staff (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let storage: FakeStorage;
+  let mail: FakeMail;
   const createdBusinessIds: string[] = [];
 
   const http = () => request(app.getHttpServer());
@@ -69,10 +86,7 @@ describe('Auth, business & staff (e2e)', () => {
       .send({ email: staffEmail, first_name: 'Sam', last_name: 'Stylist' })
       .expect(201);
     const token = new URL(invite.body.invite_url).pathname.split('/').pop()!;
-    const accepted = await http()
-      .post(`/auth/invites/${token}/accept`)
-      .send({ password: PASSWORD })
-      .expect(200);
+    const accepted = await http().post(`/auth/invites/${token}/accept`).send({ password: PASSWORD }).expect(200);
     const { user } = await me(accepted.body.access_token);
     expect(user.id).toBe(accepted.body.id);
     return { inviteToken: token, token: accepted.body.access_token as string, user };
@@ -80,11 +94,14 @@ describe('Auth, business & staff (e2e)', () => {
 
   beforeEach(async () => {
     storage = new FakeStorage();
+    mail = new FakeMail();
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(StorageService)
       .useValue(storage)
+      .overrideProvider(MAIL_TRANSPORT)
+      .useValue(mail)
       .compile();
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -201,9 +218,7 @@ describe('Auth, business & staff (e2e)', () => {
     await http().get('/users/me/sessions?order=sideways').auth(owner.token, auth).expect(400);
 
     // Revoke the phone from the laptop (signup session).
-    const phoneSession = list.body.data.find(
-      (s: { current: boolean; user_agent: string }) => !s.current && s.user_agent === 'phone',
-    );
+    const phoneSession = list.body.data.find((s: { current: boolean; user_agent: string }) => !s.current && s.user_agent === 'phone');
     await http().delete(`/users/me/sessions/${phoneSession.id}`).auth(owner.token, auth).expect(204);
     const after = await http().get('/users/me/sessions').auth(owner.token, auth).expect(200);
     expect(after.body.data).toHaveLength(2);
@@ -265,6 +280,18 @@ describe('Auth, business & staff (e2e)', () => {
     await http().patch('/business').auth(owner.token, auth).send({ logo_asset_id: pdf.id }).expect(400);
     await http().patch('/business').auth(other.token, auth).send({ logo_asset_id: image.id }).expect(400);
 
+    // Same rules for the cover image, which the public booking page shows too.
+    const cover = (await upload(owner.token, PNG, 'cover.png').expect(201)).body;
+    const withCover = await http().patch('/business').auth(owner.token, auth).send({ cover_asset_id: cover.id }).expect(200);
+    expect(withCover.body).toMatchObject({ cover_url: cover.url, logo_url: image.url });
+    expect(withCover.body).not.toHaveProperty('cover_asset');
+    await http().patch('/business').auth(owner.token, auth).send({ cover_asset_id: pdf.id }).expect(400);
+    const publicPage = await http().get(`/public/businesses/${owner.business.slug}`).expect(200);
+    expect(publicPage.body.cover_url).toBe(cover.url);
+    await http().patch('/business').auth(owner.token, auth).send({ cover_asset_id: null }).expect(200);
+    expect((await me(owner.token)).business.cover_url).toBeNull();
+    await http().delete(`/assets/${cover.id}`).auth(owner.token, auth).expect(204);
+
     // Staff can upload and delete their own files, but not the owner's.
     const staff = await inviteAndAccept(owner.token);
     const staffFile = (await upload(staff.token, PNG, 'mine.png').expect(201)).body;
@@ -273,7 +300,7 @@ describe('Auth, business & staff (e2e)', () => {
 
     // Deleting the logo asset removes it from storage and clears the logo.
     await http().delete(`/assets/${image.id}`).auth(owner.token, auth).expect(204);
-    expect(storage.removed).toHaveLength(2);
+    expect(storage.removed).toHaveLength(3);
     expect((await me(owner.token)).business.logo_url).toBeNull();
     await http().get(`/assets/${image.id}`).auth(owner.token, auth).expect(404);
   });
@@ -305,27 +332,87 @@ describe('Auth, business & staff (e2e)', () => {
     expect(asc.body.meta).toMatchObject({ take: 1, pageCount: 2, hasNextPage: true });
 
     // The accepted invite is no longer pending; a fresh one is.
-    await http()
+    const patEmail = email();
+    const pat = await http()
       .post('/staff/invites')
       .auth(owner.token, { type: 'bearer' })
-      .send({ email: email(), first_name: 'Pat', last_name: 'Pending' })
+      .send({ email: patEmail, first_name: 'Pat', last_name: 'Pending' })
       .expect(201);
     const invites = await http().get('/staff/invites').auth(owner.token, { type: 'bearer' }).expect(200);
     expect(invites.body.data).toHaveLength(1);
     expect(invites.body.data[0]).toMatchObject({ first_name: 'Pat', last_name: 'Pending' });
     expect(invites.body.data[0]).not.toHaveProperty('token_hash');
     expect(invites.body.meta.count).toBe(1);
+
+    // The invite is emailed (from the default template), with replies going to the owner who sent it.
+    expect(pat.body.email_status).toBe('queued');
+    const sent = await waitFor(async () => mail.sent.find((message) => message.to.email === patEmail));
+    expect(sent.to).toEqual({ email: patEmail, name: 'Pat Pending' });
+    expect(sent.replyTo).toEqual({ email: owner.email, name: 'Olivia Owner' });
+    expect(sent.subject).toBe('Olivia Owner invited you to join E2E Salon');
+    expect(sent.html).toContain(pat.body.invite_url);
+    expect(sent.text).toContain(pat.body.invite_url);
+    expect(sent.text).toContain('expires in 7 days');
+
+    const delivery = await waitFor(() =>
+      prisma.notification_deliveries.findFirst({
+        where: { recipient_email: patEmail, status: 'sent' },
+        include: { event: true, attempt_logs: true },
+      }),
+    );
+    expect(delivery).toMatchObject({ channel: 'email', attempts: 1, provider_message_id: `fake-${mail.sent.indexOf(sent) + 1}`, recipient_user_id: null });
+    expect(delivery.event).toMatchObject({ event: 'staff_invite', business_id: owner.business.id });
+    expect(delivery.attempt_logs).toEqual([expect.objectContaining({ attempt: 1, succeeded: true })]);
+
+    // The same idempotency key never notifies twice.
+    const again = await app.get(NotificationService).queueNotification({
+      event: NotificationEventsEnum.STAFF_INVITE,
+      idempotency_key: delivery.event.idempotency_key,
+      recipients: [{ email: patEmail, name: 'Pat Pending' }],
+      payload: delivery.event.payload as unknown as StaffInvitePayload,
+    });
+    expect(again).toMatchObject({ duplicate: true, event_id: delivery.event_id });
+  });
+
+  it('still creates the invite when the email fails, logs the attempt and retries it', async () => {
+    const owner = await signup('Glow <Salon>');
+    mail.failing = true;
+    const failingEmail = email();
+    const res = await http()
+      .post('/staff/invites')
+      .auth(owner.token, { type: 'bearer' })
+      .send({ email: failingEmail, first_name: 'Sam', last_name: 'Stylist' })
+      .expect(201);
+    expect(res.body).toMatchObject({ email_status: 'queued', invite_url: expect.stringContaining('/invite/') });
+
+    // First attempt fails and is logged; the delivery stays queued for a retry with backoff.
+    const delivery = await waitFor(() =>
+      prisma.notification_deliveries.findFirst({
+        where: { recipient_email: failingEmail, attempts: 1 },
+        include: { attempt_logs: true },
+      }),
+    );
+    expect(delivery).toMatchObject({ status: 'queued', error: 'provider down' });
+    expect(delivery.attempt_logs).toEqual([expect.objectContaining({ attempt: 1, succeeded: false, error: 'provider down' })]);
+
+    // Names are escaped in the HTML.
+    mail.failing = false;
+    const escapedEmail = email();
+    await http()
+      .post('/staff/invites')
+      .auth(owner.token, { type: 'bearer' })
+      .send({ email: escapedEmail, first_name: 'Sam', last_name: 'Stylist' })
+      .expect(201);
+    const sent = await waitFor(async () => mail.sent.find((message) => message.to.email === escapedEmail));
+    expect(sent.html).toContain('Glow &lt;Salon&gt;');
+    expect(sent.subject).toBe('Olivia Owner invited you to join Glow <Salon>');
   });
 
   it('never lets one business touch another business’s staff', async () => {
     const a = await signup('Business A');
     const b = await signup('Business B');
 
-    await http()
-      .patch(`/staff/${a.user.id}`)
-      .auth(b.token, { type: 'bearer' })
-      .send({ role: 'staff' })
-      .expect(404);
+    await http().patch(`/staff/${a.user.id}`).auth(b.token, { type: 'bearer' }).send({ role: 'staff' }).expect(404);
     await http().delete(`/staff/${a.user.id}`).auth(b.token, { type: 'bearer' }).expect(404);
   });
 

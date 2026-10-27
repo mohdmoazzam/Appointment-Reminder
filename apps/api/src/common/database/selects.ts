@@ -32,17 +32,21 @@ export const assetSelect = {
   created_at: true,
 } satisfies Prisma.assetsSelect;
 
-/** Include this when loading a business so toBusinessResponse can resolve the logo URL. */
+/** Include this when loading a business so toBusinessResponse can resolve the logo and cover URLs. */
 export const businessInclude = {
   logo_asset: { select: { url: true } },
+  cover_asset: { select: { url: true } },
 } satisfies Prisma.businessesInclude;
 
-type BusinessWithLogo = Prisma.businessesGetPayload<{ include: typeof businessInclude }>;
+type BusinessWithImages = Prisma.businessesGetPayload<{ include: typeof businessInclude }>;
 
-export type BusinessResponse = Omit<BusinessWithLogo, 'logo_asset'> & { logo_url: string | null };
+export type BusinessResponse = Omit<BusinessWithImages, 'logo_asset' | 'cover_asset'> & {
+  logo_url: string | null;
+  cover_url: string | null;
+};
 
-export function toBusinessResponse({ logo_asset, ...business }: BusinessWithLogo): BusinessResponse {
-  return { ...business, logo_url: logo_asset?.url ?? null };
+export function toBusinessResponse({ logo_asset, cover_asset, ...business }: BusinessWithImages): BusinessResponse {
+  return { ...business, logo_url: logo_asset?.url ?? null, cover_url: cover_asset?.url ?? null };
 }
 
 /** A staff member as shown inside other resources (e.g. who offers a service). */
@@ -151,10 +155,24 @@ export const publicBusinessSelect = {
   timezone: true,
   currency: true,
   logo_asset: { select: { url: true } },
+  cover_asset: { select: { url: true } },
 } satisfies Prisma.businessesSelect;
 
 type PublicBusinessRow = Prisma.businessesGetPayload<{ select: typeof publicBusinessSelect }>;
 
-export function toPublicBusinessResponse({ logo_asset, ...business }: PublicBusinessRow) {
-  return { ...business, logo_url: logo_asset?.url ?? null };
+export function toPublicBusinessResponse({ logo_asset, cover_asset, ...business }: PublicBusinessRow) {
+  return { ...business, logo_url: logo_asset?.url ?? null, cover_url: cover_asset?.url ?? null };
 }
+
+/** An in-app notification as its recipient sees it (listed, and pushed on the live stream). */
+export const inAppNotificationSelect = {
+  id: true,
+  event: true,
+  title: true,
+  body: true,
+  link: true,
+  read_at: true,
+  created_at: true,
+} satisfies Prisma.in_app_notificationsSelect;
+
+export type InAppNotificationResponse = Prisma.in_app_notificationsGetPayload<{ select: typeof inAppNotificationSelect }>;

@@ -26,7 +26,7 @@ export interface User {
   updated_at: IsoDateTime;
 }
 
-/** BusinessResponse: the business row with the logo resolved to a URL. */
+/** BusinessResponse: the business row with the logo and cover resolved to URLs. */
 export interface Business {
   id: string;
   name: string;
@@ -46,6 +46,9 @@ export interface Business {
   currency: string;
   logo_asset_id: string | null;
   logo_url: string | null;
+  /** Wide banner shown at the top of the booking page. */
+  cover_asset_id: string | null;
+  cover_url: string | null;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -189,4 +192,17 @@ export interface Slot {
   /** "HH:mm" in the business's time zone. */
   start_time: TimeOfDay;
   staff_ids: string[];
+}
+
+/** inAppNotificationSelect: one of the signed-in user's in-app notifications. */
+export interface InAppNotification {
+  id: string;
+  /** The event behind it, e.g. "online_booking_received". */
+  event: string;
+  title: string;
+  body: string;
+  /** App path to open when it's clicked. */
+  link: string | null;
+  read_at: IsoDateTime | null;
+  created_at: IsoDateTime;
 }

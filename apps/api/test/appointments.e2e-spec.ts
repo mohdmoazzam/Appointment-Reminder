@@ -8,6 +8,7 @@ import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
 import { PrismaService } from './../src/common/database/prisma.service.js';
 import { StorageService } from './../src/common/storage/storage.service.js';
+import { waitFor } from './wait-for.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -348,5 +349,127 @@ describe('Appointments & online booking (e2e)', () => {
     const online = await http().get('/appointments?order=asc').auth(clinic.token, auth).expect(200);
     expect(online.body.data.map((a: { source: string }) => a.source)).toEqual(['online', 'online']);
     expect(online.body.data[0]).toMatchObject({ notes: 'First visit', created_by_id: null });
+
+    // The doctor is told in the app about each booking, once (they're both the staff member
+    // booked and the owner).
+    const notifications = await waitFor(async () => {
+      const res = await http().get('/notifications?order=asc').auth(clinic.token, auth).expect(200);
+      return res.body.meta.count === 2 && res.body;
+    });
+    expect(notifications.data[0]).toMatchObject({
+      event: 'online_booking_received',
+      title: 'New online booking',
+      body: expect.stringContaining('Ravi Kumar booked Consultation with Dee Doctor for Mon,'),
+      link: '/appointments',
+      read_at: null,
+    });
+
+    const unread = () => http().get('/notifications/unread-count').auth(clinic.token, auth).expect(200);
+    expect((await unread()).body).toEqual({ count: 2 });
+    const read = await http().post(`/notifications/${notifications.data[0].id}/read`).auth(clinic.token, auth).expect(200);
+    expect(read.body.read_at).not.toBeNull();
+    expect((await unread()).body).toEqual({ count: 1 });
+    const unreadOnly = await http().get('/notifications?unread_only=true').auth(clinic.token, auth).expect(200);
+    expect(unreadOnly.body.data.map((n: { id: string }) => n.id)).toEqual([notifications.data[1].id]);
+    await http().post('/notifications/read-all').auth(clinic.token, auth).expect(204);
+    expect((await unread()).body).toEqual({ count: 0 });
+
+    // Someone else's notification can't be touched.
+    const other = await setUpClinic();
+    await http().post(`/notifications/${notifications.data[0].id}/read`).auth(other.token, auth).expect(404);
+
+    // Every delivery is traceable: event, delivery and attempt are recorded.
+    const delivery = await prisma.notification_deliveries.findFirstOrThrow({
+      where: { recipient_user_id: clinic.doctorId, channel: 'in_app' },
+      include: { event: true, attempt_logs: true },
+    });
+    expect(delivery).toMatchObject({ status: 'sent', attempts: 1, event: { business_id: clinic.businessId } });
+    expect(delivery.attempt_logs).toEqual([expect.objectContaining({ attempt: 1, succeeded: true, error: null })]);
+  });
+
+  it('pushes new and read notifications to the recipient’s open stream only', async () => {
+    const clinic = await setUpClinic();
+    const other = await setUpClinic();
+    await app.listen(0);
+    const { port } = app.getHttpServer().address() as { port: number };
+
+    await fetch(`http://127.0.0.1:${port}/notifications/stream`).then((res) => expect(res.status).toBe(401));
+    const mine = await openStream(port, clinic.token);
+    const theirs = await openStream(port, other.token);
+    try {
+      expect((await mine.next()).type).toBe('ready');
+      expect((await theirs.next()).type).toBe('ready');
+
+      await http()
+        .post(`/public/businesses/${clinic.slug}/appointments`)
+        .send({
+          service_id: clinic.serviceId,
+          starts_at: at(clinic.monday, '10:00'),
+          customer: { first_name: 'Ravi', last_name: 'Kumar', phone: '+91 91234 56789' },
+        })
+        .expect(201);
+
+      const created = await mine.next();
+      expect(created).toMatchObject({
+        type: 'notification.created',
+        data: { type: 'notification.created', notification: { title: 'New online booking', read_at: null } },
+      });
+      const { id } = (created.data as { notification: { id: string } }).notification;
+
+      await http().post(`/notifications/${id}/read`).auth(clinic.token, auth).expect(200);
+      expect(await mine.next()).toMatchObject({ type: 'notification.read', data: { ids: [id] } });
+
+      // Nothing for the other business's owner (the read is abandoned when the stream closes).
+      const theirNext = theirs.next().then((event) => event.type, () => 'closed');
+      const quiet = new Promise((resolve) => setTimeout(() => resolve('nothing'), 1000));
+      expect(await Promise.race([theirNext, quiet])).toBe('nothing');
+    } finally {
+      mine.close();
+      theirs.close();
+    }
   });
 });
+
+interface StreamEvent {
+  type: string;
+  data: unknown;
+}
+
+/** Opens GET /notifications/stream and reads its server-sent events (pings skipped). */
+async function openStream(port: number, token: string) {
+  const controller = new AbortController();
+  const res = await fetch(`http://127.0.0.1:${port}/notifications/stream`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: controller.signal,
+  });
+  expect(res.status).toBe(200);
+  expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+  const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+  const queue: StreamEvent[] = [];
+  let buffer = '';
+
+  /** The next event; waits for one (the test's timeout applies). */
+  const next = async (): Promise<StreamEvent> => {
+    while (queue.length === 0) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error('openStream: stream ended');
+      buffer += value;
+      let end;
+      while ((end = buffer.indexOf('\n\n')) !== -1) {
+        const block = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        const type = /^event: (.*)$/m.exec(block)?.[1] ?? 'message';
+        const data = block
+          .split('\n')
+          .filter((line) => line.startsWith('data: '))
+          .map((line) => line.slice(6))
+          .join('\n');
+        if (type !== 'ping') queue.push({ type, data: data ? (JSON.parse(data) as unknown) : '' });
+      }
+    }
+    return queue.shift()!;
+  };
+
+  return { next, close: () => controller.abort() };
+}

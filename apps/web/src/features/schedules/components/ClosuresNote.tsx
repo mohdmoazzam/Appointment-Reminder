@@ -7,7 +7,7 @@ export function ClosuresNote() {
   return (
     <Alert tone="info">
       Public holidays and other days the whole business is closed apply to everyone. Manage them in{' '}
-      <Link to={paths.businessSettings} className="font-medium underline">
+      <Link to={paths.businessClosures} className="font-medium underline">
         Business settings
       </Link>
       .

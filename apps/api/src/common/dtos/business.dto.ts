@@ -101,4 +101,13 @@ export class UpdateBusinessDto {
   @IsOptional()
   @IsUUID()
   logo_asset_id?: string | null;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description: 'Wide image uploaded via POST /assets/upload, shown on the booking page; null removes it',
+  })
+  @IsOptional()
+  @IsUUID()
+  cover_asset_id?: string | null;
 }

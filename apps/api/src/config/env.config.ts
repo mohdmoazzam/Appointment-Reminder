@@ -14,7 +14,17 @@ export interface Env {
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_API_SECRET: string;
   CLOUDINARY_FOLDER: string;
+  MAIL_PROVIDER: MailProvider;
+  MAIL_FROM_EMAIL: string;
+  MAIL_FROM_NAME: string;
+  BREVO_API_KEY: string;
+  REDIS_URL: string;
+  QUEUE_PREFIX: string;
 }
+
+/** "log" only prints emails to the console (development, tests). */
+export const MAIL_PROVIDERS = ['brevo', 'log'] as const;
+export type MailProvider = (typeof MAIL_PROVIDERS)[number];
 
 /** Use this type when injecting config so `config.get(key, { infer: true })` is typed. */
 export type AppConfigService = ConfigService<Env, true>;
@@ -51,6 +61,11 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     errors.push('PORT must be a valid port number');
   }
 
+  const mailProvider = str('MAIL_PROVIDER', 'log') as MailProvider;
+  if (!MAIL_PROVIDERS.includes(mailProvider)) {
+    errors.push(`MAIL_PROVIDER must be one of ${MAIL_PROVIDERS.join(', ')}`);
+  }
+
   const env: Env = {
     NODE_ENV: nodeEnv,
     PORT: port,
@@ -65,6 +80,13 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     CLOUDINARY_API_KEY: str('CLOUDINARY_API_KEY'),
     CLOUDINARY_API_SECRET: str('CLOUDINARY_API_SECRET'),
     CLOUDINARY_FOLDER: str('CLOUDINARY_FOLDER', 'appointment-reminder'),
+    MAIL_PROVIDER: mailProvider,
+    // Must be a sender verified with the provider when sending for real.
+    MAIL_FROM_EMAIL: str('MAIL_FROM_EMAIL', mailProvider === 'log' ? 'no-reply@localhost' : undefined),
+    MAIL_FROM_NAME: str('MAIL_FROM_NAME', 'Appointment Reminder'),
+    BREVO_API_KEY: mailProvider === 'brevo' ? str('BREVO_API_KEY') : '',
+    REDIS_URL: str('REDIS_URL', 'redis://localhost:6380'),
+    QUEUE_PREFIX: str('QUEUE_PREFIX', 'appointment-reminder'),
   };
 
   if (errors.length > 0) {

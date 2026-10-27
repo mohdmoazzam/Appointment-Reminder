@@ -6,11 +6,15 @@ import type { Prisma } from '../common/database/prisma/generated/client.js';
 import { publicBusinessSelect, toPublicBusinessResponse } from '../common/database/selects.js';
 import type { PublicAvailabilityQueryDto, PublicBookingDto } from '../common/dtos/booking.dto.js';
 import { PageDto, PageMetaDto, type PageOptionsDto } from '../common/dtos/common.dto.js';
+import { NotificationEventsEnum } from '../common/enums.js';
 import { Helper } from '../common/helper.js';
+import { NotificationService } from '../common/services/notification.service.js';
 import { CustomersService } from '../customers/customers.service.js';
 
 /** Customers can book from today up to this many days ahead. */
 export const ONLINE_BOOKING_WINDOW_DAYS = 60;
+
+type BookedAppointment = Awaited<ReturnType<AppointmentsService['book']>>;
 
 const NO_LONGER_AVAILABLE = 'That time is no longer available. Please choose another time.';
 
@@ -34,6 +38,7 @@ export class BookingService {
     private readonly availability: AvailabilityService,
     private readonly appointments: AppointmentsService,
     private readonly customers: CustomersService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async getBusiness(slug: string) {
@@ -123,6 +128,7 @@ export class BookingService {
     for (const staff_id of candidates) {
       try {
         const appointment = await this.appointments.book({ ...base, staff_id });
+        await this.notifyBusiness(business, appointment);
         return {
           id: appointment.id,
           status: appointment.status,
@@ -139,6 +145,32 @@ export class BookingService {
       }
     }
     throw dto.staff_id && lastConflict ? lastConflict : new ConflictException(NO_LONGER_AVAILABLE);
+  }
+
+  /** Tells the staff member who was booked, and the owners, in the app. */
+  private async notifyBusiness(business: { id: string; timezone: string }, appointment: BookedAppointment): Promise<void> {
+    const owners = await this.prisma.users.findMany({
+      where: { business_id: business.id, role: 'owner', status: 'active' },
+      select: { id: true, email: true, first_name: true, last_name: true },
+    });
+    const staffName = `${appointment.staff.first_name} ${appointment.staff.last_name}`;
+    await this.notifications.queueNotification({
+      event: NotificationEventsEnum.ONLINE_BOOKING_RECEIVED,
+      business_id: business.id,
+      idempotency_key: `${NotificationEventsEnum.ONLINE_BOOKING_RECEIVED}:${appointment.id}`,
+      // queueNotification drops the staff member if they're also an owner (same user_id).
+      recipients: [
+        { user_id: appointment.staff.id, name: staffName },
+        ...owners.map((owner) => ({ user_id: owner.id, email: owner.email, name: `${owner.first_name} ${owner.last_name}` })),
+      ],
+      payload: {
+        appointment_id: appointment.id,
+        customer_name: `${appointment.customer.first_name} ${appointment.customer.last_name}`,
+        service_name: appointment.service.name,
+        staff_name: staffName,
+        when: Helper.formatInZone(appointment.starts_at, business.timezone),
+      },
+    });
   }
 
   private async findBusiness(slug: string) {

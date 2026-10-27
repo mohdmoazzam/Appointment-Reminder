@@ -25,7 +25,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * Re-reads the session and user so logout, logout-all, a disabled account or a role change
    * take effect immediately, not when the access token expires.
    */
-  async validate(payload: JwtPayload): Promise<AuthUser> {
+  async validate(payload: JwtPayload & { exp: number }): Promise<AuthUser> {
     const session = await this.prisma.sessions.findUnique({
       where: { id: payload.sid },
       select: {
@@ -49,6 +49,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       business_id: session.user.business_id,
       session_id: payload.sid,
       role: session.user.role,
+      token_expires_at: Helper.fromUnixSeconds(payload.exp),
     };
   }
 }

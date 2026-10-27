@@ -109,26 +109,10 @@ export function SignupPage() {
         <fieldset className="space-y-4">
           <legend className="mb-4 text-sm font-semibold text-slate-900">Your account</legend>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField
-              label="First name"
-              autoComplete="given-name"
-              error={errors.first_name?.message}
-              {...register('first_name')}
-            />
-            <TextField
-              label="Last name"
-              autoComplete="family-name"
-              error={errors.last_name?.message}
-              {...register('last_name')}
-            />
+            <TextField label="First name" autoComplete="given-name" error={errors.first_name?.message} {...register('first_name')} />
+            <TextField label="Last name" autoComplete="family-name" error={errors.last_name?.message} {...register('last_name')} />
           </div>
-          <TextField
-            label="Email"
-            type="email"
-            autoComplete="email"
-            error={errors.email?.message}
-            {...register('email')}
-          />
+          <TextField label="Email" type="email" autoComplete="email" error={errors.email?.message} {...register('email')} />
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField
               label="Password"

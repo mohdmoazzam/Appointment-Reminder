@@ -19,4 +19,6 @@ export interface UpdateBusinessRequest {
   country?: string | null;
   /** An image uploaded via POST /assets/upload; null removes the logo. */
   logo_asset_id?: string | null;
+  /** A wide image uploaded via POST /assets/upload; null removes the cover. */
+  cover_asset_id?: string | null;
 }

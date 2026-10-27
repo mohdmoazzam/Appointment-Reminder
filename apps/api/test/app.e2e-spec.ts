@@ -17,17 +17,11 @@ describe('AppController (e2e)', () => {
   });
 
   it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+    return request(app.getHttpServer()).get('/').expect(200).expect('Hello World!');
   });
 
   it('/health (GET) reaches the database', () => {
-    return request(app.getHttpServer())
-      .get('/health')
-      .expect(200)
-      .expect({ status: 'ok', database: 'up' });
+    return request(app.getHttpServer()).get('/health').expect(200).expect({ status: 'ok', database: 'up' });
   });
 
   afterEach(async () => {

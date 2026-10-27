@@ -1,14 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usersKeys } from '@/features/users/queries';
 import type { PageQuery } from '@/types/api';
-import {
-  createInvite,
-  getStaffMember,
-  listInvites,
-  listStaff,
-  revokeInvite,
-  updateStaff,
-} from './api';
+import { createInvite, getStaffMember, listInvites, listStaff, revokeInvite, updateStaff } from './api';
 import type { CreateInviteRequest, UpdateStaffRequest } from './types';
 
 export const staffKeys = {

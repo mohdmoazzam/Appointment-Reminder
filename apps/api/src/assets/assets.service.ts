@@ -77,7 +77,7 @@ export class AssetsService {
       throw new ForbiddenException('You can only delete files you uploaded');
     }
 
-    // The row goes first (a business logo pointing at it is cleared by the FK); a failed
+    // The row goes first (a business logo or cover pointing at it is cleared by the FK); a failed
     // Cloudinary delete only leaves an unreachable file, which is logged.
     await this.prisma.assets.delete({
       where: { id: asset.id },

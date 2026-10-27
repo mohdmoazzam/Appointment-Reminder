@@ -40,8 +40,8 @@ export function SessionsCard() {
   return (
     <Card>
       <CardHeader
-        title="Where you're signed in"
-        description="Sign out of devices you don't recognise or no longer use."
+        title="Devices"
+        description="Most recently used first."
         actions={
           <Button variant="secondary" size="sm" onClick={() => setConfirmingLogoutAll(true)}>
             Sign out everywhere

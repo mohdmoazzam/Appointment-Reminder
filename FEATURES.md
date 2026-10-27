@@ -32,11 +32,12 @@ Status legend: ✅ done · 🚧 in progress · 📋 planned
 | Feature | Status | Where |
 | --- | --- | --- |
 | Signup (business + owner), login, logout, session refresh with cross-tab sync | ✅ | `apps/web/src/features/auth/` |
-| Accept staff invite from the shared link (`/invite/:token`) | ✅ | `apps/web/src/features/auth/pages/AcceptInvitePage.tsx` |
+| Accept staff invite from the emailed or shared link (`/invite/:token`) | ✅ | `apps/web/src/features/auth/pages/AcceptInvitePage.tsx` |
 | Dashboard with setup checklist and team counts | ✅ | `apps/web/src/features/dashboard/` |
-| Staff: list members, invite (shareable link), new link, revoke, change role, disable/enable | ✅ | `apps/web/src/features/staff/` |
-| Business settings: profile, address, logo upload/replace/remove (owner only) | ✅ | `apps/web/src/features/business/` |
+| Staff: list members, invite by email (Brevo; link also shareable), resend, revoke, change role, disable/enable | ✅ | `apps/web/src/features/staff/` |
+| Business settings: profile, address, logo and cover image upload/replace/remove (owner only) | ✅ | `apps/web/src/features/business/` |
 | Account: profile, signed-in devices, sign out one device or everywhere | ✅ | `apps/web/src/features/users/` |
+| Real-time in-app notifications: bell with unread count and recent list, toast on arrival, mark read / all read (synced across tabs and devices) | ✅ | `apps/web/src/features/notifications/`, `GET /notifications/stream` |
 
 ---
 
@@ -45,7 +46,7 @@ Status legend: ✅ done · 🚧 in progress · 📋 planned
 ### 1. Business accounts & authentication 📋
 
 - Business owner sign-up / login (JWT; `JWT_SECRET` is already in the env config)
-- Business profile: name, type (clinic, salon, dental, coaching), address, timezone, logo
+- Business profile: name, type (clinic, salon, dental, coaching), address, timezone, logo, cover image
 - Staff accounts with roles (owner, staff)
 
 ### 2. Services & staff ✅

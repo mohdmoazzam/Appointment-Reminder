@@ -16,9 +16,32 @@
 @layer base {
   :root {
     color-scheme: light;
+    /* Keep the scrollbar's space reserved so centred content doesn't jump sideways when a page
+       (e.g. switching tabs) grows past or shrinks below the viewport height. */
+    scrollbar-gutter: stable;
   }
 
   body {
     @apply bg-slate-50 text-slate-800 antialiased;
+  }
+
+  /* Tailwind v4 leaves buttons on the default cursor; show the pointer on everything clickable. */
+  button,
+  [role='button'],
+  [role='menuitem'],
+  [role='tab'],
+  [role='option'],
+  [role='switch'],
+  [role='checkbox'],
+  [role='radio'],
+  input:is([type='button'], [type='submit'], [type='reset'], [type='checkbox'], [type='radio'], [type='file'], [type='color']),
+  select,
+  summary,
+  label:has(input:is([type='checkbox'], [type='radio'])) {
+    cursor: pointer;
+  }
+
+  :is(button, input, select, textarea, [role='button'], [role='menuitem'], [role='tab'], [role='option']):is(:disabled, [aria-disabled='true']) {
+    cursor: not-allowed;
   }
 }

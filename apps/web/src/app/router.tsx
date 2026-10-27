@@ -89,6 +89,12 @@ export const router = createBrowserRouter([
                 }),
               },
               {
+                path: paths.notifications,
+                lazy: async () => ({
+                  Component: (await import('@/features/notifications/pages/NotificationsPage')).NotificationsPage,
+                }),
+              },
+              {
                 path: paths.businessSettings,
                 lazy: async () => ({
                   Component: (await import('@/features/business/pages/BusinessSettingsPage'))
@@ -99,6 +105,12 @@ export const router = createBrowserRouter([
                 path: paths.account,
                 lazy: async () => ({
                   Component: (await import('@/features/users/pages/AccountPage')).AccountPage,
+                }),
+              },
+              {
+                path: paths.devices,
+                lazy: async () => ({
+                  Component: (await import('@/features/users/pages/DevicesPage')).DevicesPage,
                 }),
               },
             ],
