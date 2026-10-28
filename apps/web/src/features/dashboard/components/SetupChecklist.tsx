@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { paths } from '@/app/paths';
-import { Card, CardHeader } from '@/components/ui/Card';
-import { cn } from '@/lib/cn';
+import { ChevronRightIcon } from '@/components/layout/icons';
+import { Card } from '@/components/ui/Card';
 import type { Business } from '@/types/models';
 
 interface ChecklistItem {
@@ -77,56 +77,73 @@ function buildChecklist({
   ];
 }
 
-/** Getting-started steps. Hidden once everything is done. */
+/** Getting-started steps still to do, with overall progress. Hidden once everything is done. */
 export function SetupChecklist(props: SetupChecklistProps) {
   const items = buildChecklist(props);
   const doneCount = items.filter((item) => item.done).length;
   if (doneCount === items.length) return null;
 
+  const remaining = items.filter((item) => !item.done);
+  const percent = Math.round((doneCount / items.length) * 100);
+
   return (
-    <Card>
-      <CardHeader
-        title="Finish setting up"
-        description={`${doneCount} of ${items.length} steps done`}
-      />
-      <ul className="divide-y divide-slate-100">
-        {items.map((item) => (
-          <li key={item.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-            <CheckIcon done={item.done} />
-            {!item.done && props.canEdit ? (
-              <Link to={item.to} className="font-medium text-brand-600 hover:text-brand-700">
-                {item.label}
+    <Card className="overflow-hidden">
+      <div className="px-5 pt-4 pb-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-base font-semibold text-slate-900">Finish setting up</h2>
+          <p className="text-sm text-slate-500 tabular-nums">
+            {doneCount} of {items.length} done
+          </p>
+        </div>
+        <div
+          role="progressbar"
+          aria-label="Setup progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+          className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"
+        >
+          <div
+            className="h-full rounded-full bg-brand-600 transition-[width]"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      </div>
+      <ul className="divide-y divide-slate-100 border-t border-slate-100">
+        {remaining.map((item) => (
+          <li key={item.id}>
+            {props.canEdit ? (
+              <Link
+                to={item.to}
+                className="group flex items-center gap-3 px-5 py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+              >
+                <StepDot />
+                <span className="flex-1">{item.label}</span>
+                <ChevronRightIcon className="size-4 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-600" />
               </Link>
             ) : (
-              <span className={cn(item.done ? 'text-slate-400 line-through' : 'text-slate-700')}>
+              <div className="flex items-center gap-3 px-5 py-3 text-sm text-slate-700">
+                <StepDot />
                 {item.label}
-              </span>
+              </div>
             )}
           </li>
         ))}
       </ul>
+      {!props.canEdit && (
+        <p className="border-t border-slate-100 bg-slate-50 px-5 py-2.5 text-xs text-slate-500">
+          The business owner can complete these steps.
+        </p>
+      )}
     </Card>
   );
 }
 
-function CheckIcon({ done }: { done: boolean }) {
+function StepDot() {
   return (
     <span
-      aria-label={done ? 'Done' : 'To do'}
-      className={cn(
-        'inline-flex size-5 shrink-0 items-center justify-center rounded-full border',
-        done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 bg-white',
-      )}
-    >
-      {done && (
-        <svg viewBox="0 0 20 20" fill="currentColor" className="size-3.5" aria-hidden="true">
-          <path
-            fillRule="evenodd"
-            d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.8 3.8 6.8-6.8a1 1 0 0 1 1.4 0Z"
-            clipRule="evenodd"
-          />
-        </svg>
-      )}
-    </span>
+      aria-hidden="true"
+      className="size-4 shrink-0 rounded-full border-2 border-slate-300 bg-white"
+    />
   );
 }
