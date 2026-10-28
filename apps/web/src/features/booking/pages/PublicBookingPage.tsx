@@ -242,7 +242,7 @@ function PageFrame({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col bg-slate-50">
       <div className="flex-1">{children}</div>
       <footer className="py-6 text-center text-xs text-slate-400">
-        Powered by Appointment Reminder
+        Powered by ShowUp
       </footer>
     </div>
   );

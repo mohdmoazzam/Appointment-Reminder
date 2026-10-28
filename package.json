@@ -1,5 +1,5 @@
 {
-  "name": "appointment-reminder",
+  "name": "showup",
   "private": true,
   "version": "0.1.0",
   "description": "Appointment booking + WhatsApp reminder tool for clinics, salons, dental offices and coaching centers",

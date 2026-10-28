@@ -29,7 +29,7 @@ export function layout({ preheader, body }: LayoutOptions): string {
           ${body}
         </td></tr>
       </table>
-      <p style="margin:24px 0 0;font-size:12px;color:#94a3b8">Sent by Appointment Reminder</p>
+      <p style="margin:24px 0 0;font-size:12px;color:#94a3b8">Sent by ShowUp</p>
     </td></tr>
   </table>
 </body>

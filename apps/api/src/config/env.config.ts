@@ -83,7 +83,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     MAIL_PROVIDER: mailProvider,
     // Must be a sender verified with the provider when sending for real.
     MAIL_FROM_EMAIL: str('MAIL_FROM_EMAIL', mailProvider === 'log' ? 'no-reply@localhost' : undefined),
-    MAIL_FROM_NAME: str('MAIL_FROM_NAME', 'Appointment Reminder'),
+    MAIL_FROM_NAME: str('MAIL_FROM_NAME', 'ShowUp'),
     BREVO_API_KEY: mailProvider === 'brevo' ? str('BREVO_API_KEY') : '',
     REDIS_URL: str('REDIS_URL', 'redis://localhost:6380'),
     QUEUE_PREFIX: str('QUEUE_PREFIX', 'appointment-reminder'),

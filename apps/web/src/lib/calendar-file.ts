@@ -19,7 +19,7 @@ export function buildCalendarFile(event: CalendarEvent): string {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Appointment Reminder//Booking//EN',
+    'PRODID:-//ShowUp//Booking//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

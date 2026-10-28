@@ -1,4 +1,4 @@
-# Appointment Reminder
+# ShowUp
 
 Appointment booking + WhatsApp reminder tool for clinics, salons, dental offices and coaching centers.
 Aims to reduce no-shows, prevent double bookings and save time spent taking bookings over the phone.

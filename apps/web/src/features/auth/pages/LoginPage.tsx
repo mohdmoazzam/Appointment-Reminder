@@ -33,7 +33,7 @@ export function LoginPage() {
       description="Welcome back. Sign in to manage your appointments."
       footer={
         <>
-          New to Appointment Reminder?{' '}
+          New to ShowUp?{' '}
           <Link to={paths.signup} className="font-medium text-brand-600 hover:text-brand-700">
             Create a business account
           </Link>

@@ -18,7 +18,7 @@ export function AppLogo({ className }: { className?: string }) {
           <path d="m9 15 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
-      Appointment Reminder
+      ShowUp
     </span>
   );
 }
