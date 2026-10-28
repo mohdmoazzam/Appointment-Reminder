@@ -150,8 +150,17 @@ export class BookingService {
   /** Tells the staff member who was booked, and the owners, in the app. */
   private async notifyBusiness(business: { id: string; timezone: string }, appointment: BookedAppointment): Promise<void> {
     const owners = await this.prisma.users.findMany({
-      where: { business_id: business.id, role: 'owner', status: 'active' },
-      select: { id: true, email: true, first_name: true, last_name: true },
+      where: {
+        business_id: business.id,
+        role: 'owner',
+        status: 'active',
+      },
+      select: {
+        id: true,
+        email: true,
+        first_name: true,
+        last_name: true,
+      },
     });
     const staffName = `${appointment.staff.first_name} ${appointment.staff.last_name}`;
     await this.notifications.queueNotification({
@@ -176,7 +185,10 @@ export class BookingService {
   private async findBusiness(slug: string) {
     const business = await this.prisma.businesses.findUnique({
       where: { slug },
-      select: { id: true, timezone: true },
+      select: {
+        id: true,
+        timezone: true,
+      },
     });
     if (!business) throw new NotFoundException('Business not found');
     return business;

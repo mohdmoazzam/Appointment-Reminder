@@ -62,7 +62,16 @@ export class NotificationService {
           reply_to_name: input.reply_to?.name ?? null,
           deliveries: { create: deliveries },
         },
-        select: { id: true, deliveries: { select: { id: true, channel: true, status: true } } },
+        select: {
+          id: true,
+          deliveries: {
+            select: {
+              id: true,
+              channel: true,
+              status: true,
+            },
+          },
+        },
       });
     } catch (error) {
       // Lost a race with the same key: the other call queued it.
@@ -74,7 +83,11 @@ export class NotificationService {
     }
 
     const queued = await Promise.all(event.deliveries.map((delivery) => this.enqueue(delivery)));
-    return { event_id: event.id, duplicate: false, deliveries: queued };
+    return {
+      event_id: event.id,
+      duplicate: false,
+      deliveries: queued,
+    };
   }
 
   /** One delivery per channel the event allows and recipient, skipped when it can't be sent. */
@@ -150,8 +163,15 @@ export class NotificationService {
       this.logger.error(`Couldn't queue ${delivery.channel} delivery ${delivery.id}`, error);
       const failed = await this.prisma.notification_deliveries.update({
         where: { id: delivery.id },
-        data: { status: 'failed', error: `Couldn't queue: ${Helper.errorMessage(error)}` },
-        select: { id: true, channel: true, status: true },
+        data: {
+          status: 'failed',
+          error: `Couldn't queue: ${Helper.errorMessage(error)}`,
+        },
+        select: {
+          id: true,
+          channel: true,
+          status: true,
+        },
       });
       return failed;
     }

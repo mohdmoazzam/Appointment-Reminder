@@ -55,7 +55,11 @@ export class AppointmentsService {
     private readonly customers: CustomersService,
   ) {}
 
-  /** Free start times for a service on a day (dashboard: past times included, for the record). */
+  /**
+   * Free start times for a service on a day, from now on. Past appointments can still be
+   * recorded by typing a time ("book outside working hours"), since dashboard bookings don't
+   * require a future time.
+   */
   async findSlots(business_id: string, query: AvailabilityQueryDto) {
     const slots = await this.availability.findSlots({
       business_id,
@@ -63,6 +67,7 @@ export class AppointmentsService {
       date: query.date,
       staff_id: query.staff_id,
       ignore_appointment_id: query.ignore_appointment_id,
+      not_before: Helper.getCurrentTimestamp(),
     });
     return paginateSlots(slots, query);
   }
