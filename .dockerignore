@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
+apps/api/src/common/database/prisma/generated
+.git
+.vscode
+.idea
+**/.DS_Store
